@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Camera, CheckCircle2, Cuboid, Mic, Move, Orbit, ScanSearch } from 'lucide-react';
+import { ArrowLeft, Camera, CheckCircle2, Mic, Move, Orbit, ScanSearch } from 'lucide-react';
 import zhangjiReference from '../assets/zhangji-reference.webp';
-import zhangJiModelUrl from '../assets/models/zhangji-front.glb';
 
 interface ARPlacementScreenProps {
   onBack: () => void;
@@ -9,12 +8,10 @@ interface ARPlacementScreenProps {
 }
 
 type ModelAnimationState = 'idle' | 'speaking' | 'bow';
-const ModelViewer = 'model-viewer' as any;
 
 export function ARPlacementScreen({ onBack, onPlaced }: ARPlacementScreenProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const modelViewerRef = useRef<any>(null);
   const dialogDragOffsetRef = useRef({ x: 0, y: 0 });
   const controlsDragOffsetRef = useRef({ x: 0, y: 0 });
   const [cameraReady, setCameraReady] = useState(false);
@@ -29,8 +26,6 @@ export function ARPlacementScreen({ onBack, onPlaced }: ARPlacementScreenProps) 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [animationState, setAnimationState] = useState<ModelAnimationState>('idle');
   const [showEntranceLine, setShowEntranceLine] = useState(false);
-  const [modelViewerReady, setModelViewerReady] = useState(false);
-  const [availableAnimations, setAvailableAnimations] = useState<string[]>([]);
   const [dialogPosition, setDialogPosition] = useState({ x: 18, y: 138 });
   const [isDraggingDialog, setIsDraggingDialog] = useState(false);
   const [controlsPosition, setControlsPosition] = useState({ x: 20, y: 560 });
@@ -79,23 +74,6 @@ export function ARPlacementScreen({ onBack, onPlaced }: ARPlacementScreenProps) 
   }, []);
 
   useEffect(() => {
-    if (customElements.get('model-viewer')) {
-      setModelViewerReady(true);
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.type = 'module';
-    script.src = 'https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js';
-    script.onload = () => setModelViewerReady(true);
-    document.head.appendChild(script);
-
-    return () => {
-      script.remove();
-    };
-  }, []);
-
-  useEffect(() => {
     if (!cameraReady) return;
 
     const interval = window.setInterval(() => {
@@ -110,23 +88,6 @@ export function ARPlacementScreen({ onBack, onPlaced }: ARPlacementScreenProps) 
 
     return () => window.clearInterval(interval);
   }, [cameraReady]);
-
-  useEffect(() => {
-    if (!modelViewerReady || !modelPlaced || !modelViewerRef.current) return;
-
-    const viewer = modelViewerRef.current;
-    const handleLoad = () => {
-      const animations = Array.isArray(viewer.availableAnimations) ? viewer.availableAnimations : [];
-      setAvailableAnimations(animations);
-    };
-
-    viewer.addEventListener('load', handleLoad);
-    handleLoad();
-
-    return () => {
-      viewer.removeEventListener('load', handleLoad);
-    };
-  }, [modelPlaced, modelViewerReady]);
 
   useEffect(() => {
     if (!isDraggingDialog) return;
@@ -231,15 +192,6 @@ export function ARPlacementScreen({ onBack, onPlaced }: ARPlacementScreenProps) 
     'Who are you?': 'I am Zhang Ji, a passing poet listening to the bell and the river night.',
     'Tell me about the poem': 'This poem gathers moonlight, bells, homesickness, and the quiet sorrow of a traveler at Maple Bridge.',
   };
-  const loweredAnimations = availableAnimations.map((name) => ({ raw: name, normalized: name.toLowerCase() }));
-  const animationKeywords: Record<ModelAnimationState, string[]> = {
-    idle: ['idle', 'stand', 'default', 'loop'],
-    speaking: ['speak', 'talk', 'chat', 'conversation'],
-    bow: ['bow', 'greet', 'salute'],
-  };
-  const selectedAnimationName = loweredAnimations.find((item) =>
-    animationKeywords[animationState].some((keyword) => item.normalized.includes(keyword))
-  )?.raw;
   const modelMotionClass =
     animationState === 'speaking'
       ? 'animate-model-speaking'
@@ -335,36 +287,16 @@ export function ARPlacementScreen({ onBack, onPlaced }: ARPlacementScreenProps) 
                     <div className="absolute left-1/2 bottom-0 h-16 w-36 -translate-x-1/2 rounded-full border border-stone-900/30 bg-[radial-gradient(ellipse_at_center,rgba(41,37,36,0.9),rgba(28,25,23,0.62)_46%,rgba(15,23,42,0.08)_78%,transparent)] opacity-0 animate-ink-ring" />
                     <div className="absolute inset-x-2 bottom-0 h-6 rounded-full bg-amber-300/35 blur-xl" />
                     <div className={`relative h-56 w-44 ${modelMotionClass}`}>
-                      {modelViewerReady ? (
-                        <ModelViewer
-                          ref={modelViewerRef}
-                          src={zhangJiModelUrl}
-                          alt="Zhang Ji AR model"
-                          autoplay
-                          animation-name={selectedAnimationName || undefined}
-                          exposure="1"
-                          shadow-intensity="1"
-                          shadow-softness="0.6"
-                          camera-controls={false}
-                          interaction-prompt="none"
-                          disable-zoom
-                          disable-pan
-                          touch-action="none"
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            background: 'transparent',
-                            filter: 'drop-shadow(0 14px 24px rgba(15, 23, 42, 0.34))',
-                          }}
+                      <div className="flex h-full w-full items-end justify-center overflow-hidden rounded-[22px] border border-amber-200/45 bg-[linear-gradient(180deg,rgba(255,251,235,0.4),rgba(255,255,255,0.08))] backdrop-blur-md">
+                        <img
+                          src={zhangjiReference}
+                          alt="Zhang Ji AR stand-in visual"
+                          className="h-full w-full object-contain drop-shadow-[0_14px_24px_rgba(15,23,42,0.34)]"
                         />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center rounded-[22px] border border-amber-200/45 bg-[linear-gradient(180deg,rgba(255,251,235,0.72),rgba(255,255,255,0.16))] backdrop-blur-md">
-                          <Cuboid className="h-8 w-8 text-amber-200" />
-                        </div>
-                      )}
+                      </div>
                     </div>
                     <div className="absolute -bottom-5 left-1/2 w-max -translate-x-1/2 rounded-full border border-white/10 bg-black/42 px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] text-white/80 backdrop-blur-md">
-                      {selectedAnimationName ? `${animationState}: ${selectedAnimationName}` : `State: ${animationState}`}
+                      {`State: ${animationState}`}
                     </div>
                   </div>
                 </div>

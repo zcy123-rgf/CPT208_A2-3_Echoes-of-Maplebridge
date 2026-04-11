@@ -3,4 +3,5 @@ dist/
 .DS_Store
 .vite/
 .vite-temp/
+app/assets/models/
 *.glb

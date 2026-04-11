@@ -104,4 +104,5 @@ This project used AI-assisted coding during front-end prototyping. The primary p
 
 - Front-end prototype code lives in `app/`, `styles/`, `main.tsx`, and `vite.config.ts`.
 - Generated folders such as `node_modules/` and `dist/` are excluded from version control.
+- Large AR model source files under `app/assets/models/` are intentionally excluded from the repository to keep collaboration and submission lightweight.
 - If you are adding backend or database support later, keep the current UI flow intact and layer APIs behind the existing screen transitions where possible.
