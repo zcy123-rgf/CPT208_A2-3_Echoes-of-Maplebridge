@@ -149,10 +149,6 @@ export function ARExplorationScreen({
           >
             <X className="h-5 w-5 text-white" />
           </button>
-          <div className="flex items-center gap-2 rounded-full border border-amber-200/30 bg-black/55 px-4 py-2 backdrop-blur-md">
-            <Sparkles className="h-4 w-4 text-amber-300" />
-            <span className="text-xs font-light uppercase tracking-[0.22em] text-amber-50">AR Guide</span>
-          </div>
         </div>
       </div>
 
@@ -248,7 +244,7 @@ export function ARExplorationScreen({
             <div>
               <h4 className="font-light text-amber-50">{isFullARExperience ? 'Unlock the Echo Fragment' : 'Guide Preview'}</h4>
               <p className="text-xs font-light text-amber-200/70">
-                {isFullARExperience ? 'Browse the mock AI dialogue, then continue the AR task' : 'Preview the AI guide, then continue to the photo check-in'}
+                {isFullARExperience ? 'Browse the mock AI dialogue, then continue the AR task' : 'Preview the AI interaction, then continue to the photo check-in'}
               </p>
             </div>
           </div>
@@ -256,7 +252,7 @@ export function ARExplorationScreen({
           <p className="mb-4 text-sm font-light leading-relaxed text-white/90">
             {isFullARExperience
               ? 'This version focuses on display only: a richer guide persona, suggested questions, and a sample AI answer that fits the atmosphere of Maple Bridge.'
-              : 'Tap the small camera icon to open the AR guide. A cartoon character will appear on site, introduce the story of this point, and interact with the user in a more vivid way.'}
+              : 'This preview shows an AI guide interaction for this story point. Visitors can choose suggested questions, read a guide response, and then continue to the photo check-in task.'}
           </p>
 
           <button

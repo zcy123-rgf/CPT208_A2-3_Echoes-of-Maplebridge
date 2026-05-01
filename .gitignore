@@ -1,7 +1,11 @@
 node_modules/
 dist/
 .DS_Store
+.env.local
 .vite/
 .vite-temp/
-app/assets/models/
 *.glb
+.vercel
+app/assets/models/*
+!app/assets/models/
+!app/assets/models/zhangji-front.glb

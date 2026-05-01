@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Camera, CheckCircle2, Mic, Move, Orbit, ScanSearch } from 'lucide-react';
+import { ArrowLeft, Camera, CheckCircle2, Cuboid, LoaderCircle, Mic, Move, Orbit, ScanSearch, Volume2 } from 'lucide-react';
+import { askZhangJi, isDoubaoConfigured } from '../lib/doubaoGuide';
 import zhangjiReference from '../assets/zhangji-reference.webp';
+import zhangJiModelUrl from '../assets/models/zhangji-front.glb';
 
 interface ARPlacementScreenProps {
   onBack: () => void;
@@ -8,12 +10,29 @@ interface ARPlacementScreenProps {
 }
 
 type ModelAnimationState = 'idle' | 'speaking' | 'bow';
+type VoiceStatus = 'idle' | 'listening' | 'thinking' | 'replying' | 'error';
+const ModelViewer = 'model-viewer' as any;
+const DIALOG_PANEL_MAX_WIDTH = 260;
+const CONTROL_PANEL_MAX_WIDTH = 320;
+const VOICE_PANEL_MAX_WIDTH = 300;
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(Math.max(value, min), Math.max(min, max));
+}
+
+function panelWidth(screenWidth: number, maxWidth: number, sideSpace: number) {
+  return Math.min(Math.max(screenWidth - sideSpace, 260), maxWidth);
+}
 
 export function ARPlacementScreen({ onBack, onPlaced }: ARPlacementScreenProps) {
+  const screenRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const modelViewerRef = useRef<any>(null);
+  const recognitionRef = useRef<any>(null);
   const dialogDragOffsetRef = useRef({ x: 0, y: 0 });
   const controlsDragOffsetRef = useRef({ x: 0, y: 0 });
+  const voicePanelDragOffsetRef = useRef({ x: 0, y: 0 });
   const [cameraReady, setCameraReady] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
   const [scanProgress, setScanProgress] = useState(8);
@@ -26,10 +45,21 @@ export function ARPlacementScreen({ onBack, onPlaced }: ARPlacementScreenProps) 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [animationState, setAnimationState] = useState<ModelAnimationState>('idle');
   const [showEntranceLine, setShowEntranceLine] = useState(false);
-  const [dialogPosition, setDialogPosition] = useState({ x: 18, y: 138 });
+  const [modelViewerReady, setModelViewerReady] = useState(false);
+  const [availableAnimations, setAvailableAnimations] = useState<string[]>([]);
+  const [dialogPosition, setDialogPosition] = useState({ x: 64, y: 138 });
   const [isDraggingDialog, setIsDraggingDialog] = useState(false);
-  const [controlsPosition, setControlsPosition] = useState({ x: 20, y: 560 });
+  const [controlsPosition, setControlsPosition] = useState({ x: 36, y: 560 });
   const [isDraggingControls, setIsDraggingControls] = useState(false);
+  const [voicePanelPosition, setVoicePanelPosition] = useState({ x: 44, y: 422 });
+  const [isDraggingVoicePanel, setIsDraggingVoicePanel] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState<VoiceStatus>('idle');
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const [aiReply, setAiReply] = useState('');
+  const [aiResponseSource, setAiResponseSource] = useState<'doubao' | 'local'>(
+    isDoubaoConfigured() ? 'doubao' : 'local'
+  );
+  const [voiceError, setVoiceError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -74,6 +104,30 @@ export function ARPlacementScreen({ onBack, onPlaced }: ARPlacementScreenProps) 
   }, []);
 
   useEffect(() => {
+    return () => {
+      recognitionRef.current?.abort?.();
+      window.speechSynthesis?.cancel();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (customElements.get('model-viewer')) {
+      setModelViewerReady(true);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.type = 'module';
+    script.src = 'https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js';
+    script.onload = () => setModelViewerReady(true);
+    document.head.appendChild(script);
+
+    return () => {
+      script.remove();
+    };
+  }, []);
+
+  useEffect(() => {
     if (!cameraReady) return;
 
     const interval = window.setInterval(() => {
@@ -90,13 +144,37 @@ export function ARPlacementScreen({ onBack, onPlaced }: ARPlacementScreenProps) 
   }, [cameraReady]);
 
   useEffect(() => {
+    if (!modelViewerReady || !modelPlaced || !modelViewerRef.current) return;
+
+    const viewer = modelViewerRef.current;
+    const handleLoad = () => {
+      const animations = Array.isArray(viewer.availableAnimations) ? viewer.availableAnimations : [];
+      setAvailableAnimations(animations);
+    };
+
+    viewer.addEventListener('load', handleLoad);
+    handleLoad();
+
+    return () => {
+      viewer.removeEventListener('load', handleLoad);
+    };
+  }, [modelPlaced, modelViewerReady]);
+
+  useEffect(() => {
     if (!isDraggingDialog) return;
 
     const handlePointerMove = (event: PointerEvent) => {
-      const width = 288;
+      const bounds = screenRef.current?.getBoundingClientRect();
+      const screenWidth = bounds?.width ?? window.innerWidth;
+      const screenHeight = bounds?.height ?? window.innerHeight;
+      const width = panelWidth(screenWidth, DIALOG_PANEL_MAX_WIDTH, 144);
       const height = 152;
-      const nextX = Math.min(Math.max(event.clientX - dialogDragOffsetRef.current.x, 12), window.innerWidth - width - 12);
-      const nextY = Math.min(Math.max(event.clientY - dialogDragOffsetRef.current.y, 86), window.innerHeight - height - 120);
+      const maxX = screenWidth - width - 12;
+      const maxY = screenHeight - height - 16;
+      const localX = event.clientX - (bounds?.left ?? 0);
+      const localY = event.clientY - (bounds?.top ?? 0);
+      const nextX = clamp(localX - dialogDragOffsetRef.current.x, 12, maxX);
+      const nextY = clamp(localY - dialogDragOffsetRef.current.y, 72, maxY);
       setDialogPosition({ x: nextX, y: nextY });
     };
 
@@ -117,10 +195,15 @@ export function ARPlacementScreen({ onBack, onPlaced }: ARPlacementScreenProps) 
     if (!isDraggingControls) return;
 
     const handlePointerMove = (event: PointerEvent) => {
-      const width = Math.min(window.innerWidth - 40, 420);
-      const height = modelPlaced ? 330 : 190;
-      const nextX = Math.min(Math.max(event.clientX - controlsDragOffsetRef.current.x, 12), window.innerWidth - width - 12);
-      const nextY = Math.min(Math.max(event.clientY - controlsDragOffsetRef.current.y, 96), window.innerHeight - height - 16);
+      const bounds = screenRef.current?.getBoundingClientRect();
+      const screenWidth = bounds?.width ?? window.innerWidth;
+      const screenHeight = bounds?.height ?? window.innerHeight;
+      const width = panelWidth(screenWidth, CONTROL_PANEL_MAX_WIDTH, 72);
+      const height = modelPlaced ? 250 : 190;
+      const localX = event.clientX - (bounds?.left ?? 0);
+      const localY = event.clientY - (bounds?.top ?? 0);
+      const nextX = clamp(localX - controlsDragOffsetRef.current.x, 12, screenWidth - width - 12);
+      const nextY = clamp(localY - controlsDragOffsetRef.current.y, 96, screenHeight - height - 16);
       setControlsPosition({ x: nextX, y: nextY });
     };
 
@@ -136,6 +219,66 @@ export function ARPlacementScreen({ onBack, onPlaced }: ARPlacementScreenProps) 
       window.removeEventListener('pointerup', handlePointerUp);
     };
   }, [isDraggingControls, modelPlaced]);
+
+  useEffect(() => {
+    if (!isDraggingVoicePanel) return;
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const bounds = screenRef.current?.getBoundingClientRect();
+      const screenWidth = bounds?.width ?? window.innerWidth;
+      const screenHeight = bounds?.height ?? window.innerHeight;
+      const width = panelWidth(screenWidth, VOICE_PANEL_MAX_WIDTH, 96);
+      const height = 140;
+      const localX = event.clientX - (bounds?.left ?? 0);
+      const localY = event.clientY - (bounds?.top ?? 0);
+      const nextX = clamp(localX - voicePanelDragOffsetRef.current.x, 12, screenWidth - width - 12);
+      const nextY = clamp(localY - voicePanelDragOffsetRef.current.y, 96, screenHeight - height - 16);
+      setVoicePanelPosition({ x: nextX, y: nextY });
+    };
+
+    const handlePointerUp = () => {
+      setIsDraggingVoicePanel(false);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [isDraggingVoicePanel]);
+
+  useEffect(() => {
+    const keepPanelsVisible = () => {
+      const bounds = screenRef.current?.getBoundingClientRect();
+      const screenWidth = bounds?.width ?? window.innerWidth;
+      const screenHeight = bounds?.height ?? window.innerHeight;
+      const dialogWidth = panelWidth(screenWidth, DIALOG_PANEL_MAX_WIDTH, 144);
+      const controlWidth = panelWidth(screenWidth, CONTROL_PANEL_MAX_WIDTH, 72);
+      const voiceWidth = panelWidth(screenWidth, VOICE_PANEL_MAX_WIDTH, 96);
+
+      setDialogPosition((position) => ({
+        x: clamp(position.x, 12, screenWidth - dialogWidth - 12),
+        y: clamp(position.y, 72, screenHeight - 152 - 16),
+      }));
+      setControlsPosition((position) => ({
+        x: clamp(position.x, 12, screenWidth - controlWidth - 12),
+        y: clamp(position.y, 96, screenHeight - (modelPlaced ? 250 : 190) - 16),
+      }));
+      setVoicePanelPosition((position) => ({
+        x: clamp(position.x, 12, screenWidth - voiceWidth - 12),
+        y: clamp(position.y, 96, screenHeight - 140 - 16),
+      }));
+    };
+
+    keepPanelsVisible();
+    window.addEventListener('resize', keepPanelsVisible);
+
+    return () => {
+      window.removeEventListener('resize', keepPanelsVisible);
+    };
+  }, [modelPlaced]);
 
   const scanStatus = useMemo(() => {
     if (permissionDenied) {
@@ -188,40 +331,193 @@ export function ARPlacementScreen({ onBack, onPlaced }: ARPlacementScreenProps) 
     }
   };
 
+  const speakGuideReply = (text: string) => {
+    if (!window.speechSynthesis || !text) {
+      setVoiceStatus('idle');
+      triggerAnimationState('idle', { autoReset: false });
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = /[\u4e00-\u9fff]/.test(text) ? 'zh-CN' : 'en-US';
+    utterance.rate = 0.92;
+    utterance.pitch = 0.82;
+    utterance.onend = () => {
+      setVoiceStatus('idle');
+      triggerAnimationState('idle', { autoReset: false });
+    };
+    utterance.onerror = () => {
+      setVoiceStatus('idle');
+      triggerAnimationState('idle', { autoReset: false });
+    };
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const askGuide = async (question: string) => {
+    const trimmedQuestion = question.trim();
+    if (!trimmedQuestion) return;
+
+    setActiveQuestion(trimmedQuestion);
+    setVoiceTranscript(trimmedQuestion);
+    setAiReply('');
+    setVoiceError(null);
+    setShowEntranceLine(false);
+    setVoiceStatus('thinking');
+    triggerAnimationState('speaking', { autoReset: false });
+
+    try {
+      const result = await askZhangJi(trimmedQuestion);
+      setAiReply(result.answer);
+      setAiResponseSource(result.source);
+      setVoiceStatus('replying');
+      speakGuideReply(result.answer);
+    } catch {
+      const fallback = '豆包暂时没有连上。我先以张继的本地角色回答：请听枫桥水声与寒山钟声，它们会把这一夜带回你身边。';
+      setAiReply(fallback);
+      setAiResponseSource('local');
+      setVoiceStatus('replying');
+      speakGuideReply(fallback);
+    }
+  };
+
+  const handleVoiceButtonClick = () => {
+    if (voiceStatus === 'thinking' || voiceStatus === 'replying') return;
+
+    if (voiceStatus === 'listening') {
+      recognitionRef.current?.stop?.();
+      return;
+    }
+
+    const SpeechRecognitionConstructor =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+    if (!SpeechRecognitionConstructor) {
+      setVoiceStatus('error');
+      setVoiceError('This browser does not support speech recognition. Try Chrome or Edge, or use the preset questions.');
+      return;
+    }
+
+    const recognition = new SpeechRecognitionConstructor();
+    recognitionRef.current = recognition;
+    let handledError = false;
+    let latestTranscript = '';
+    let finalTranscript = '';
+
+    recognition.lang = navigator.language || 'zh-CN';
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      window.speechSynthesis?.cancel();
+      setVoiceStatus('listening');
+      setVoiceTranscript('');
+      setAiReply('');
+      setVoiceError(null);
+      setActiveQuestion(null);
+      triggerAnimationState('speaking', { autoReset: false });
+    };
+
+    recognition.onresult = (event: any) => {
+      latestTranscript = '';
+
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const transcript = event.results[index][0]?.transcript || '';
+        latestTranscript += transcript;
+
+        if (event.results[index].isFinal) {
+          finalTranscript += transcript;
+        }
+      }
+
+      setVoiceTranscript(finalTranscript || latestTranscript);
+    };
+
+    recognition.onerror = () => {
+      handledError = true;
+      setVoiceStatus('error');
+      setVoiceError('I could not hear that clearly. Please tap the mic and try again.');
+      triggerAnimationState('idle', { autoReset: false });
+    };
+
+    recognition.onend = () => {
+      recognitionRef.current = null;
+      if (handledError) return;
+
+      const question = (finalTranscript || latestTranscript).trim();
+      if (question) {
+        void askGuide(question);
+        return;
+      }
+
+      setVoiceStatus('error');
+      setVoiceError('No voice was detected. Tap the mic and speak to Zhang Ji.');
+      triggerAnimationState('idle', { autoReset: false });
+    };
+
+    try {
+      recognition.start();
+    } catch {
+      setVoiceStatus('error');
+      setVoiceError('The microphone is already starting. Please wait a moment and try again.');
+    }
+  };
+
   const quickReplies: Record<string, string> = {
     'Who are you?': 'I am Zhang Ji, a passing poet listening to the bell and the river night.',
     'Tell me about the poem': 'This poem gathers moonlight, bells, homesickness, and the quiet sorrow of a traveler at Maple Bridge.',
   };
+  const loweredAnimations = availableAnimations.map((name) => ({ raw: name, normalized: name.toLowerCase() }));
+  const animationKeywords: Record<ModelAnimationState, string[]> = {
+    idle: ['idle', 'stand', 'default', 'loop'],
+    speaking: ['speak', 'talk', 'chat', 'conversation'],
+    bow: ['bow', 'greet', 'salute'],
+  };
+  const selectedAnimationName = loweredAnimations.find((item) =>
+    animationKeywords[animationState].some((keyword) => item.normalized.includes(keyword))
+  )?.raw;
   const modelMotionClass =
     animationState === 'speaking'
       ? 'animate-model-speaking'
       : animationState === 'bow'
         ? 'animate-model-bow'
         : 'animate-model-idle';
-  const activeDialogText = activeQuestion
-    ? quickReplies[activeQuestion]
+  const activeDialogText = aiReply || (activeQuestion
+    ? quickReplies[activeQuestion] || 'I am listening. Let the question settle like moonlight on the river.'
     : showEntranceLine
       ? 'I am Zhang Ji. Greetings to you. This is Fengqiao, the place of my timeless verse.'
-      : null;
+      : null);
 
   const handleDialogPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    const bounds = screenRef.current?.getBoundingClientRect();
     dialogDragOffsetRef.current = {
-      x: event.clientX - dialogPosition.x,
-      y: event.clientY - dialogPosition.y,
+      x: event.clientX - (bounds?.left ?? 0) - dialogPosition.x,
+      y: event.clientY - (bounds?.top ?? 0) - dialogPosition.y,
     };
     setIsDraggingDialog(true);
   };
 
   const handleControlsPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    const bounds = screenRef.current?.getBoundingClientRect();
     controlsDragOffsetRef.current = {
-      x: event.clientX - controlsPosition.x,
-      y: event.clientY - controlsPosition.y,
+      x: event.clientX - (bounds?.left ?? 0) - controlsPosition.x,
+      y: event.clientY - (bounds?.top ?? 0) - controlsPosition.y,
     };
     setIsDraggingControls(true);
   };
 
+  const handleVoicePanelPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    const bounds = screenRef.current?.getBoundingClientRect();
+    voicePanelDragOffsetRef.current = {
+      x: event.clientX - (bounds?.left ?? 0) - voicePanelPosition.x,
+      y: event.clientY - (bounds?.top ?? 0) - voicePanelPosition.y,
+    };
+    setIsDraggingVoicePanel(true);
+  };
+
   return (
-    <div className="relative h-full overflow-hidden bg-black">
+    <div ref={screenRef} className="relative h-full overflow-hidden bg-black">
       <div className="absolute inset-0">
         {permissionDenied ? (
           <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_top,rgba(251,191,36,0.2),transparent_30%),linear-gradient(180deg,#111827,#0f172a)] px-10 text-center">
@@ -287,16 +583,36 @@ export function ARPlacementScreen({ onBack, onPlaced }: ARPlacementScreenProps) 
                     <div className="absolute left-1/2 bottom-0 h-16 w-36 -translate-x-1/2 rounded-full border border-stone-900/30 bg-[radial-gradient(ellipse_at_center,rgba(41,37,36,0.9),rgba(28,25,23,0.62)_46%,rgba(15,23,42,0.08)_78%,transparent)] opacity-0 animate-ink-ring" />
                     <div className="absolute inset-x-2 bottom-0 h-6 rounded-full bg-amber-300/35 blur-xl" />
                     <div className={`relative h-56 w-44 ${modelMotionClass}`}>
-                      <div className="flex h-full w-full items-end justify-center overflow-hidden rounded-[22px] border border-amber-200/45 bg-[linear-gradient(180deg,rgba(255,251,235,0.4),rgba(255,255,255,0.08))] backdrop-blur-md">
-                        <img
-                          src={zhangjiReference}
-                          alt="Zhang Ji AR stand-in visual"
-                          className="h-full w-full object-contain drop-shadow-[0_14px_24px_rgba(15,23,42,0.34)]"
+                      {modelViewerReady ? (
+                        <ModelViewer
+                          ref={modelViewerRef}
+                          src={zhangJiModelUrl}
+                          alt="Zhang Ji AR model"
+                          autoplay
+                          animation-name={selectedAnimationName || undefined}
+                          exposure="1"
+                          shadow-intensity="1"
+                          shadow-softness="0.6"
+                          camera-controls={false}
+                          interaction-prompt="none"
+                          disable-zoom
+                          disable-pan
+                          touch-action="none"
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            background: 'transparent',
+                            filter: 'drop-shadow(0 14px 24px rgba(15, 23, 42, 0.34))',
+                          }}
                         />
-                      </div>
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center rounded-[22px] border border-amber-200/45 bg-[linear-gradient(180deg,rgba(255,251,235,0.72),rgba(255,255,255,0.16))] backdrop-blur-md">
+                          <Cuboid className="h-8 w-8 text-amber-200" />
+                        </div>
+                      )}
                     </div>
                     <div className="absolute -bottom-5 left-1/2 w-max -translate-x-1/2 rounded-full border border-white/10 bg-black/42 px-3 py-1.5 text-[11px] uppercase tracking-[0.16em] text-white/80 backdrop-blur-md">
-                      {`State: ${animationState}`}
+                      {selectedAnimationName ? `${animationState}: ${selectedAnimationName}` : `State: ${animationState}`}
                     </div>
                   </div>
                 </div>
@@ -340,14 +656,18 @@ export function ARPlacementScreen({ onBack, onPlaced }: ARPlacementScreenProps) 
 
       {modelPlaced && activeDialogText && (
         <div
-          className={`absolute z-30 w-72 rounded-[24px] border border-amber-100/28 bg-[linear-gradient(180deg,rgba(17,24,39,0.9),rgba(41,37,36,0.76))] shadow-[0_18px_40px_rgba(15,23,42,0.32)] backdrop-blur-md ${showEntranceLine && !activeQuestion ? 'animate-greeting-rise' : ''}`}
-          style={{ left: dialogPosition.x, top: dialogPosition.y }}
+          className={`absolute z-30 rounded-[24px] border border-amber-100/28 bg-[linear-gradient(180deg,rgba(17,24,39,0.9),rgba(41,37,36,0.76))] shadow-[0_18px_40px_rgba(15,23,42,0.32)] backdrop-blur-md ${showEntranceLine && !activeQuestion ? 'animate-greeting-rise' : ''}`}
+          style={{
+            left: dialogPosition.x,
+            top: dialogPosition.y,
+            width: `min(calc(100% - 144px), ${DIALOG_PANEL_MAX_WIDTH}px)`,
+          }}
+          onPointerDown={handleDialogPointerDown}
         >
           <div
-            onPointerDown={handleDialogPointerDown}
-            className={`flex cursor-grab items-center justify-between rounded-t-[24px] border-b border-white/10 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-amber-100/85 ${isDraggingDialog ? 'cursor-grabbing' : ''}`}
+            className={`flex cursor-grab items-center justify-between rounded-t-[24px] border-b border-white/10 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-amber-100/85 touch-none ${isDraggingDialog ? 'cursor-grabbing' : ''}`}
           >
-            <span>{activeQuestion ? 'Guide Reply' : 'Opening Line'}</span>
+            <span>{aiReply ? 'AI Guide Reply' : activeQuestion ? 'Guide Reply' : 'Opening Line'}</span>
             <div className="flex items-center gap-2 text-white/65">
               <Move className="h-3.5 w-3.5" />
               <span>Drag</span>
@@ -364,13 +684,13 @@ export function ARPlacementScreen({ onBack, onPlaced }: ARPlacementScreenProps) 
         style={{
           left: controlsPosition.x,
           top: controlsPosition.y,
-          width: 'min(calc(100vw - 40px), 420px)',
+          width: `min(calc(100% - 72px), ${CONTROL_PANEL_MAX_WIDTH}px)`,
         }}
       >
         <div className="rounded-[28px] border border-white/12 bg-black/42 p-4 backdrop-blur-xl">
           <div
             onPointerDown={handleControlsPointerDown}
-            className={`mb-3 flex cursor-grab items-center justify-between rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-amber-100/80 ${isDraggingControls ? 'cursor-grabbing' : ''}`}
+            className={`mb-3 flex cursor-grab items-center justify-between rounded-[18px] border border-white/10 bg-white/[0.04] px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-amber-100/80 touch-none ${isDraggingControls ? 'cursor-grabbing' : ''}`}
           >
             <span>Interaction Panel</span>
             <div className="flex items-center gap-2 text-white/60">
@@ -414,19 +734,13 @@ export function ARPlacementScreen({ onBack, onPlaced }: ARPlacementScreenProps) 
             <>
               <div className="mb-3 flex justify-center gap-2">
                 <button
-                  onClick={() => {
-                    setActiveQuestion('Who are you?');
-                    triggerAnimationState('speaking');
-                  }}
+                  onClick={() => void askGuide('Who are you?')}
                   className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-light text-white/90 pointer-events-auto"
                 >
                   Who are you?
                 </button>
                 <button
-                  onClick={() => {
-                    setActiveQuestion('Tell me about the poem');
-                    triggerAnimationState('speaking');
-                  }}
+                  onClick={() => void askGuide('Tell me about the poem')}
                   className="rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm font-light text-white/90 pointer-events-auto"
                 >
                   Tell me about the poem
@@ -442,52 +756,27 @@ export function ARPlacementScreen({ onBack, onPlaced }: ARPlacementScreenProps) 
                 </button>
 
                 <button
-                  onClick={() => triggerAnimationState('speaking')}
+                  onClick={handleVoiceButtonClick}
                   className={`flex h-20 w-20 items-center justify-center rounded-full border text-white backdrop-blur-md pointer-events-auto transition-all ${
-                    animationState === 'speaking'
+                    voiceStatus === 'listening'
+                      ? 'border-emerald-300/70 bg-emerald-300/20 shadow-[0_0_34px_rgba(110,231,183,0.25)] scale-105'
+                      : voiceStatus === 'thinking' || voiceStatus === 'replying'
+                        ? 'border-amber-300/60 bg-amber-200/20 shadow-[0_0_30px_rgba(251,191,36,0.24)] scale-105'
+                        : animationState === 'speaking'
                       ? 'border-amber-300/60 bg-amber-200/20 shadow-[0_0_30px_rgba(251,191,36,0.24)] scale-105'
                       : 'border-white/20 bg-white/14 shadow-[0_0_24px_rgba(255,255,255,0.12)]'
                   }`}
+                  aria-label="Talk to Zhang Ji"
                 >
-                  <Mic className="h-8 w-8" />
+                  {voiceStatus === 'thinking' ? (
+                    <LoaderCircle className="h-8 w-8 animate-spin" />
+                  ) : voiceStatus === 'replying' ? (
+                    <Volume2 className="h-8 w-8" />
+                  ) : (
+                    <Mic className="h-8 w-8" />
+                  )}
                 </button>
               </div>
-
-              <div className="mt-3 flex items-center justify-between gap-2">
-                <div className="rounded-full border border-amber-300/25 bg-amber-400/12 px-3 py-1.5 text-xs uppercase tracking-[0.18em] text-amber-100">
-                  Animation: {animationState}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => triggerAnimationState('idle', { autoReset: false })}
-                    className={`rounded-full px-3 py-1.5 text-xs font-light pointer-events-auto ${
-                      animationState === 'idle' ? 'bg-white text-stone-900' : 'bg-white/10 text-white/80'
-                    }`}
-                  >
-                    Idle Pose
-                  </button>
-                  <button
-                    onClick={() => triggerAnimationState('speaking', { autoReset: false })}
-                    className={`rounded-full px-3 py-1.5 text-xs font-light pointer-events-auto ${
-                      animationState === 'speaking' ? 'bg-white text-stone-900' : 'bg-white/10 text-white/80'
-                    }`}
-                  >
-                    Speaking
-                  </button>
-                  <button
-                    onClick={() => triggerAnimationState('bow', { autoReset: false })}
-                    className={`rounded-full px-3 py-1.5 text-xs font-light pointer-events-auto ${
-                      animationState === 'bow' ? 'bg-white text-stone-900' : 'bg-white/10 text-white/80'
-                    }`}
-                  >
-                    Bow Greeting
-                  </button>
-                </div>
-              </div>
-
-              <p className="mt-2 text-xs font-light leading-5 text-white/62">
-                Tap any motion button to let Zhang Ji face you and hold that pose until you choose another one.
-              </p>
 
               <div className="mt-3 flex items-center justify-between">
                 <p className="text-sm font-light text-white/78">
@@ -503,6 +792,44 @@ export function ARPlacementScreen({ onBack, onPlaced }: ARPlacementScreenProps) 
           )}
         </div>
       </div>
+
+      {modelPlaced && (
+        <div
+          className="absolute z-30 rounded-[24px] border border-white/12 bg-[linear-gradient(180deg,rgba(15,23,42,0.88),rgba(28,25,23,0.78))] shadow-[0_18px_44px_rgba(0,0,0,0.28)] backdrop-blur-xl"
+          style={{
+            left: voicePanelPosition.x,
+            top: voicePanelPosition.y,
+            width: `min(calc(100% - 96px), ${VOICE_PANEL_MAX_WIDTH}px)`,
+          }}
+        >
+          <div
+            onPointerDown={handleVoicePanelPointerDown}
+            className={`flex cursor-grab items-center justify-between rounded-t-[24px] border-b border-white/10 px-4 py-2 text-[11px] uppercase tracking-[0.18em] text-amber-100/82 touch-none ${isDraggingVoicePanel ? 'cursor-grabbing' : ''}`}
+          >
+            <span>
+              {voiceStatus === 'listening'
+                ? 'Listening'
+                : voiceStatus === 'thinking'
+                  ? 'Asking Doubao'
+                  : voiceStatus === 'replying'
+                    ? 'Speaking Back'
+                    : 'Voice AI'}
+            </span>
+            <div className="flex items-center gap-2 text-white/58">
+              <span>{aiResponseSource === 'doubao' ? 'Doubao API' : 'Local fallback'}</span>
+              <Move className="h-3.5 w-3.5" />
+            </div>
+          </div>
+          <div className="px-4 py-3">
+            <p className="min-h-10 text-xs font-light leading-5 text-white/78">
+              {voiceError ||
+                aiReply ||
+                voiceTranscript ||
+                'Tap the mic and ask Zhang Ji about Maple Bridge, the poem, or the midnight bell.'}
+            </p>
+          </div>
+        </div>
+      )}
 
       {captureComplete && (
         <div className="absolute right-5 top-[7.8rem] z-30 w-36 rounded-[24px] border border-white/14 bg-black/46 p-3 shadow-2xl backdrop-blur-xl">

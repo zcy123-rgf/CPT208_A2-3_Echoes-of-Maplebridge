@@ -32,6 +32,8 @@ jobs:
         run: npm install
 
       - name: Build
+        env:
+          VITE_BASE_PATH: /CPT208_A2-3_Echoes-of-Maplebridge/
         run: npm run build
 
       - name: Upload Pages artifact

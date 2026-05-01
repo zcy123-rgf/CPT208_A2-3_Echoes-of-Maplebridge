@@ -1,4 +1,5 @@
-import { ArrowLeft, Navigation, MessageCircle, MapPin, Clock, Footprints } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Navigation, MapPin, Clock, Footprints, X, LocateFixed, ExternalLink } from 'lucide-react';
 
 type StoryPointSummary = {
   id: string;
@@ -21,8 +22,142 @@ const FALLBACK_DESCRIPTIONS = [
   'Where the ancient waterway bends through history',
   'A crossing once defined by regulation and nightfall',
   'Trade, streets, and everyday life along the canal',
-  'The poem that turned this place into cultural memory'
+  'The poem that turned this place into cultural memory',
 ];
+
+const MAP_ROUTE_POINTS = [
+  { name: 'Grand Canal Turning Point', lng: 120.56574, lat: 31.31628 },
+  { name: 'Sealed Bridge at Night', lng: 120.56628, lat: 31.31688 },
+  { name: 'Trade Streets and Everyday Memory', lng: 120.56672, lat: 31.31746 },
+  { name: 'Night Mooring at Maple Bridge', lng: 120.56708, lat: 31.31805 },
+];
+
+function amapNavigationUrl(destination: { lng: number; lat: number; name: string }) {
+  const to = encodeURIComponent(`${destination.lng},${destination.lat},${destination.name}`);
+  return `https://uri.amap.com/navigation?to=${to}&mode=walk&src=echoes-maplebridge`;
+}
+
+function StaticNavigationView({
+  destination,
+  distance,
+  onClose,
+  onStartStory,
+}: {
+  destination: { lng: number; lat: number; name: string };
+  distance: string;
+  onClose: () => void;
+  onStartStory: () => void;
+}) {
+  const externalUrl = useMemo(() => amapNavigationUrl(destination), [destination]);
+
+  return (
+    <div className="absolute inset-0 z-40 flex flex-col bg-stone-950 text-white">
+      <div className="relative flex-1 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_22%,rgba(251,191,36,0.22),transparent_34%),linear-gradient(180deg,#4b3c30_0%,#292524_42%,#111111_100%)]">
+          <svg className="absolute inset-0 h-full w-full opacity-90" viewBox="0 0 390 844" fill="none">
+            <path
+              d="M 88 690 C 118 614, 100 536, 170 492 C 232 453, 208 364, 278 296"
+              stroke="#fde68a"
+              strokeWidth="8"
+              strokeLinecap="round"
+              strokeDasharray="18 18"
+              opacity="0.85"
+            />
+            <path
+              d="M 88 690 C 118 614, 100 536, 170 492 C 232 453, 208 364, 278 296"
+              stroke="#f97316"
+              strokeWidth="2"
+              strokeLinecap="round"
+              opacity="0.65"
+            />
+            <circle cx="88" cy="690" r="18" fill="#fb923c" opacity="0.22" />
+            <circle cx="88" cy="690" r="8" fill="#fb923c" />
+            <circle cx="278" cy="296" r="22" fill="#fde68a" opacity="0.2" />
+            <circle cx="278" cy="296" r="10" fill="#fde68a" />
+          </svg>
+
+          <div className="absolute left-9 top-[17rem] rounded-full border border-amber-200/25 bg-black/28 px-3 py-1.5 backdrop-blur-md">
+            <p className="text-xs font-light text-amber-100">Start: Visitor Location</p>
+          </div>
+          <div className="absolute right-7 top-[12.5rem] max-w-[10rem] rounded-2xl border border-amber-200/28 bg-black/30 px-3 py-2 backdrop-blur-md">
+            <p className="text-[11px] uppercase tracking-[0.16em] text-amber-100/80">Destination</p>
+            <p className="mt-1 text-sm font-light leading-5 text-white">{destination.name}</p>
+          </div>
+          <div className="absolute left-1/2 top-[24.5rem] -translate-x-1/2">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full border border-amber-200/35 bg-black/30 backdrop-blur-md">
+              <Navigation className="h-8 w-8 text-amber-200" />
+            </div>
+          </div>
+        </div>
+
+        <div className="absolute left-0 right-0 top-0 z-10 px-5 pt-14">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={onClose}
+              className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/45 backdrop-blur-md"
+            >
+              <X className="h-5 w-5 text-white" />
+            </button>
+            <div className="rounded-full border border-amber-200/30 bg-black/45 px-4 py-2 backdrop-blur-md">
+              <span className="text-xs uppercase tracking-[0.22em] text-amber-100">AMap Walk</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="absolute bottom-0 left-0 right-0 z-10 rounded-t-[2rem] border-t border-white/12 bg-white text-stone-900 shadow-2xl">
+          <div className="p-5">
+            <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-stone-300" />
+            <div className="flex items-start gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-md">
+                <LocateFixed className="h-6 w-6" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs uppercase tracking-[0.18em] text-stone-500">Navigate To</p>
+                <h3 className="mt-1 text-lg font-light leading-snug text-stone-900">{destination.name}</h3>
+                <p className="mt-1 text-sm font-light text-stone-500">
+                  Follow the highlighted walking route to the next story point.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
+                <p className="text-xs font-light text-amber-700">Distance</p>
+                <p className="mt-1 text-lg font-light text-amber-950">{distance}</p>
+              </div>
+              <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
+                <p className="text-xs font-light text-amber-700">Time</p>
+                <p className="mt-1 text-lg font-light text-amber-950">2 min walk</p>
+              </div>
+            </div>
+
+            <div className="mt-3 rounded-2xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs font-light leading-5 text-stone-600">
+              Walk along the canal path, keep the bridge on your right, and stop when the story marker appears.
+            </div>
+
+            <div className="mt-4 flex gap-2">
+              <a
+                href={externalUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex flex-1 items-center justify-center gap-2 rounded-full border border-stone-300 bg-white py-3 text-sm font-light text-stone-800"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Open in AMap
+              </a>
+              <button
+                onClick={onStartStory}
+                className="flex flex-1 items-center justify-center gap-2 rounded-full bg-stone-900 py-3 text-sm font-light text-white"
+              >
+                Start Story
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function MapNavigationScreen({
   onBack,
@@ -31,8 +166,11 @@ export function MapNavigationScreen({
   currentStoryPointIndex,
   completedCount,
 }: MapNavigationScreenProps) {
+  const sheetDragStartYRef = useRef<number | null>(null);
+  const [isNavigationOpen, setIsNavigationOpen] = useState(false);
   const safeIndex = Math.min(currentStoryPointIndex, Math.max(storyPoints.length - 1, 0));
   const nextPoint = storyPoints[safeIndex];
+  const destination = MAP_ROUTE_POINTS[safeIndex] ?? MAP_ROUTE_POINTS[0];
 
   const getDistance = (index: number) => {
     return storyPoints[index]?.distance ?? FALLBACK_DISTANCES[index] ?? '120m';
@@ -42,8 +180,36 @@ export function MapNavigationScreen({
     return storyPoints[index]?.description ?? FALLBACK_DESCRIPTIONS[index] ?? 'Explore the next story point.';
   };
 
+  const openNavigation = () => {
+    setIsNavigationOpen(true);
+  };
+
+  const handleSheetDragStart = (event: React.PointerEvent<HTMLButtonElement>) => {
+    sheetDragStartYRef.current = event.clientY;
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleSheetDragEnd = (event: React.PointerEvent<HTMLButtonElement>) => {
+    const startY = sheetDragStartYRef.current;
+    sheetDragStartYRef.current = null;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+
+    if (startY !== null && event.clientY - startY > 28) {
+      openNavigation();
+    }
+  };
+
   return (
     <div className="h-full flex flex-col relative bg-stone-100">
+      {isNavigationOpen && (
+        <StaticNavigationView
+          destination={destination}
+          distance={getDistance(safeIndex)}
+          onClose={() => setIsNavigationOpen(false)}
+          onStartStory={onStartNavigation}
+        />
+      )}
+
       <div className="flex-1 relative overflow-hidden">
         <div className="absolute inset-0">
           <img
@@ -129,7 +295,10 @@ export function MapNavigationScreen({
               <ArrowLeft className="w-5 h-5 text-stone-700" />
             </button>
 
-            <button className="w-11 h-11 rounded-full bg-white/95 backdrop-blur-sm shadow-lg flex items-center justify-center border border-stone-200/50 hover:bg-white transition-colors">
+            <button
+              onClick={openNavigation}
+              className="w-11 h-11 rounded-full bg-white/95 backdrop-blur-sm shadow-lg flex items-center justify-center border border-stone-200/50 hover:bg-white transition-colors"
+            >
               <Navigation className="w-5 h-5 text-stone-700" />
             </button>
           </div>
@@ -157,18 +326,20 @@ export function MapNavigationScreen({
             </div>
           </div>
         </div>
-
-        <div className="absolute bottom-6 right-5">
-          <button className="w-14 h-14 rounded-full bg-gradient-to-br from-stone-800 to-stone-700 shadow-xl flex items-center justify-center hover:shadow-2xl transition-all hover:scale-105 active:scale-95 border-2 border-amber-200/30">
-            <MessageCircle className="w-6 h-6 text-amber-100" />
-          </button>
-          <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-white animate-pulse" />
-        </div>
       </div>
 
       <div className="bg-white rounded-t-3xl shadow-2xl border-t border-stone-200/50">
         <div className="p-6">
-          <div className="w-12 h-1 bg-stone-300 rounded-full mx-auto mb-5" />
+          <button
+            type="button"
+            onClick={openNavigation}
+            onPointerDown={handleSheetDragStart}
+            onPointerUp={handleSheetDragEnd}
+            className="mx-auto mb-5 flex h-5 w-24 items-center justify-center touch-none"
+            aria-label="Open navigation"
+          >
+            <span className="h-1 w-12 rounded-full bg-stone-300 transition-colors hover:bg-stone-400" />
+          </button>
 
           <div className="mb-5">
             <div className="flex items-start gap-3 mb-3">
@@ -227,8 +398,8 @@ export function MapNavigationScreen({
                       isCurrent
                         ? 'bg-orange-50 border border-orange-200'
                         : isCompleted
-                        ? 'bg-emerald-50 border border-emerald-200'
-                        : 'bg-stone-50 border border-stone-200'
+                          ? 'bg-emerald-50 border border-emerald-200'
+                          : 'bg-stone-50 border border-stone-200'
                     }`}
                   >
                     <div
@@ -236,8 +407,8 @@ export function MapNavigationScreen({
                         isCurrent
                           ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white'
                           : isCompleted
-                          ? 'bg-emerald-500 text-white'
-                          : 'bg-stone-300 text-stone-600'
+                            ? 'bg-emerald-500 text-white'
+                            : 'bg-stone-300 text-stone-600'
                       }`}
                     >
                       {index + 1}
