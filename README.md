@@ -1,26 +1,31 @@
-# CPT208 A2-3 Echoes of Maplebridge
+# Echoes of Maplebridge
 
-Echoes of Maplebridge is a mobile-first web prototype for the CPT208 Human-Centric Computing group project on the Maple Bridge heritage theme. The system turns an onsite heritage visit into a playful journey through story points, AR moments, community photo sharing, and a completion-based fragment collection flow.
+Echoes of Maplebridge is a live, interactive web app created for the CPT208 Human-Centric Computing group project. The experience reimagines Maple Bridge heritage as a mobile-first playful journey that combines story exploration, AR-style guide interaction, and community participation.
 
-## Repository Information
+## Live Demo
 
-- GitHub repository: [CPT208_A2-3_Echoes-of-Maplebridge](https://github.com/zcy123-rgf/CPT208_A2-3_Echoes-of-Maplebridge)
-- Planned live URL: [GitHub Pages deployment](https://zcy123-rgf.github.io/CPT208_A2-3_Echoes-of-Maplebridge/)
-- Project type: Web app prototype for the `A2 Suzhou Grand Canal - Maple Bridge` track
+- Vercel: [https://cpt208-src.vercel.app](https://cpt208-src.vercel.app)
+- GitHub Pages: [https://zcy123-rgf.github.io/CPT208_A2-3_Echoes-of-Maplebridge/](https://zcy123-rgf.github.io/CPT208_A2-3_Echoes-of-Maplebridge/)
 
-## System Scope
+## Source Code Repository
 
-This repository contains the system code for the coursework submission. The portfolio website and video deliverables are intentionally excluded from this repository at this stage.
+- GitHub repository: [https://github.com/zcy123-rgf/CPT208_A2-3_Echoes-of-Maplebridge](https://github.com/zcy123-rgf/CPT208_A2-3_Echoes-of-Maplebridge)
 
-## Core Playful Features
+## Project Context
 
-The current prototype demonstrates the system's must-have playful features:
+- Coursework track: `A2 Suzhou Grand Canal - Maple Bridge`
+- System type: public web app prototype
+- Device focus: mobile-first responsive interface for onsite heritage interaction
+
+## Core Features
+
+This repository currently implements at least three must-have playful features:
 
 1. Story-based exploration across four Maple Bridge heritage points.
-2. AR-style guide interaction and placement flow for the final poetic checkpoint.
-3. Community participation through photo wall uploads and a completion leaderboard.
+2. AR-style virtual guide placement and interaction for the Zhang Ji checkpoint.
+3. Community participation through photo-wall contribution and leaderboard completion flow.
 
-## Tech Stack
+## Technologies Used
 
 - React
 - TypeScript
@@ -28,23 +33,32 @@ The current prototype demonstrates the system's must-have playful features:
 - Tailwind CSS
 - Radix UI
 - Motion
-- GitHub Pages for static hosting
+- Lucide React
+- Vercel
+- GitHub Pages
 
-## Project Structure
+## Repository Structure
 
 ```text
 .
-├── ai-logs/                # Primary AI prompt records used during coding
-├── app/                    # App screens, assets, and reusable UI components
-├── docs/                   # Submission-supporting technical notes
-├── styles/                 # Global theme, font, and Tailwind styles
-├── index.html              # Vite entry document
-├── main.tsx                # App bootstrap
+├── .github/                # Deployment workflows
+├── ai-logs/                # Primary AI prompts used for core components
+├── docs/                   # Architecture and submission-supporting notes
+├── public/                 # Public static assets copied as-is on build
+├── src/                    # Main application source code
+│   ├── assets/             # Images and optimized 3D model
+│   ├── components/         # Screens and reusable UI components
+│   ├── lib/                # Client-side helper logic
+│   ├── styles/             # Theme, fonts, and global styles
+│   ├── App.tsx             # Main screen controller and state container
+│   └── main.tsx            # Vite entry point
+├── .env.example            # Example environment variables
+├── index.html              # App shell
 ├── package.json            # Scripts and dependencies
-└── vite.config.ts          # Vite config for GitHub Pages deployment
+└── vite.config.ts          # Shared Vite config for Vercel and GitHub Pages
 ```
 
-## Getting Started
+## Setup Instructions
 
 ### Prerequisites
 
@@ -75,34 +89,46 @@ npm run build
 npm run preview
 ```
 
-## Data Handling
+## Deployment Notes
 
-This prototype currently handles interaction state on the client side with React state. The system records:
+### Vercel
 
-- the current screen in the heritage journey
-- the current story point index
-- collected story fragments unlocked by user interactions
-- completion progress used to drive the summary and leaderboard views
+The default build configuration is already suitable for Vercel:
 
-This implementation matches the current front-end prototype stage. A future team backend can replace or extend these local states with database-backed storage for user progress, uploads, and leaderboard data.
+- Build command: `npm run build`
+- Output directory: `dist`
 
-## System Architecture
+### GitHub Pages
 
-See [docs/system-architecture.md](/Users/zhuchenyu/Documents/Playground/cpt208-src/docs/system-architecture.md) for the repository's current architecture summary and a Mermaid diagram of the front-end data flow.
+GitHub Pages deployment is handled by [deploy.yml](/Users/zhuchenyu/Documents/Playground/cpt208-src/.github/workflows/deploy.yml), which injects the required base path for the repository site during build.
 
-## Accessibility and Responsive Intent
+## Responsive Design
 
-- Designed as a mobile-first interface matching the Maple Bridge onsite use case.
-- Uses clear visual hierarchy, progress feedback, and distinct action buttons.
-- Structured as a single-page interactive flow that can be extended with accessibility refinements during later testing.
+The interface is designed as a mobile-first experience because the heritage visit scenario is intended for phone use at or near the site. Layout, touch targets, floating panels, and content hierarchy are optimized for small screens while remaining usable on desktop browsers for demonstration and assessment.
 
-## AI Usage Record
+## Interaction State and Data Handling
 
-This project used AI-assisted coding during front-end prototyping. The primary prompt log required by the coursework is stored in [ai-logs/primary-prompts.md](/Users/zhuchenyu/Documents/Playground/cpt208-src/ai-logs/primary-prompts.md).
+The system currently manages interaction states on the client side through React state. Key examples include:
 
-## Notes for Teammates
+- current screen and journey stage
+- selected story point
+- collected heritage fragments
+- AR placement progress
+- guide dialogue state
+- completion and leaderboard flow
 
-- Front-end prototype code lives in `app/`, `styles/`, `main.tsx`, and `vite.config.ts`.
-- Generated folders such as `node_modules/` and `dist/` are excluded from version control.
-- Large AR model source files under `app/assets/models/` are intentionally excluded from the repository to keep collaboration and submission lightweight.
-- If you are adding backend or database support later, keep the current UI flow intact and layer APIs behind the existing screen transitions where possible.
+This provides clear evidence of how the system processes user interaction without requiring a backend database at the current prototype stage.
+
+For the architecture summary, see [system-architecture.md](/Users/zhuchenyu/Documents/Playground/cpt208-src/docs/system-architecture.md).
+
+## AI Usage
+
+This project used AI-assisted coding for core front-end development. The required primary prompt record is stored in:
+
+- [primary-prompts.md](/Users/zhuchenyu/Documents/Playground/cpt208-src/ai-logs/primary-prompts.md)
+
+## Notes for Submission
+
+- The live URL is public and intended to stay active during marking.
+- The repository contains the functional system code rather than portfolio-only materials.
+- The current codebase aligns with the portfolio requirement to show how user input and interaction states are handled in the web app.

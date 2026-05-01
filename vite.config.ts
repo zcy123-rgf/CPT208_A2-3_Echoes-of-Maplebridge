@@ -20,8 +20,9 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      // Alias @ to the project root directory
-      '@': path.resolve(__dirname, '.'),
+      // Alias @ to the source directory for cleaner imports and a clearer
+      // coursework-ready repository structure.
+      '@': path.resolve(__dirname, './src'),
     },
   },
 

@@ -6,6 +6,6 @@ dist/
 .vite-temp/
 *.glb
 .vercel
-app/assets/models/*
-!app/assets/models/
-!app/assets/models/zhangji-front.glb
+src/assets/models/*
+!src/assets/models/
+!src/assets/models/zhangji-front.glb
