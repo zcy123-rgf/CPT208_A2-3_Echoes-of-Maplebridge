@@ -1,22 +1,24 @@
 # System Architecture
 
-## Current Prototype Architecture
+## Current Architecture
 
-The current system is a client-side React web application built with Vite and optimized for a mobile-first heritage exploration flow. It does not yet use a backend service or database. User interaction state is managed in the browser through React state and passed between screens as props, which provides clear evidence of how the prototype handles user input and interaction progress.
+The system is now split into a Vite-based React client and a lightweight Node backend. The client still controls screen flow and presentation, while the backend manages account sessions, persists journey progress in SQLite, stores processed uploads, and aggregates community data for the photo wall and leaderboard.
 
 ## Data Flow Summary
 
 1. `src/main.tsx` mounts the application.
 2. `src/App.tsx` acts as the screen controller and central state container.
 3. Screen components under `src/components/` render the current journey stage and call handler functions passed from `App.tsx`.
-4. User actions update local state such as current checkpoint, collected fragments, and completion status.
-5. The updated state drives the completion screen, community wall flow, and leaderboard experience.
+4. Signed-in users authenticate through backend session endpoints.
+5. User actions call backend APIs for checkpoint completion, community uploads, likes, and guide requests.
+6. The backend stores relational data in `server/data/app.db`, migrates legacy JSON data when needed, writes processed images and thumbnails under `server/uploads`, and returns normalized responses.
+7. The updated responses drive the completion screen, community wall flow, and leaderboard experience.
 
 ## Portfolio Alignment Notes
 
 - The live system is a responsive web app that can be hosted on Vercel or GitHub Pages.
 - The architecture supports the three showcased must-have playful features: story exploration, AR-style guide interaction, and community participation.
-- The current implementation demonstrates interaction-state management without requiring a backend database at the prototype stage.
+- The current implementation demonstrates both client interaction-state management and a practical backend persistence layer.
 
 ## Mermaid Diagram
 
@@ -41,13 +43,24 @@ flowchart TD
     G -->|capture or finish task| B
     H -->|upload photo| B
     I -->|continue exploring| D
+    B --> N["src/lib/api.ts"]
+    N --> O["server/index.mjs"]
+    O --> P["server/data/app.db"]
+    O --> Q["server/uploads/images + thumbnails"]
 ```
 
-## Backend Extension Plan
+## Current Backend Responsibilities
 
-This structure is ready for future collaboration with backend teammates. The most natural next steps are:
+- create and validate user accounts plus expiring session tokens
+- persist collected fragments and current story-point progress per user in SQLite
+- compress uploaded images, generate thumbnails, and store photo metadata
+- support like actions and aggregate leaderboard rankings
+- proxy Zhang Ji guide requests so AI credentials are not exposed in the browser
+- expose backend health counters for quick local diagnostics
 
-- replace local fragment progress with API-backed user progress
-- connect community uploads to cloud storage or a database
-- replace static leaderboard content with dynamic ranking data
-- persist checkpoint completion and guide interactions for repeat sessions
+## Suggested Next Steps
+
+- replace local SQLite and file storage with managed cloud database plus object storage
+- add moderation rules for community content
+- add password reset and account management flows
+- add background cleanup for orphaned uploads and long-expired sessions

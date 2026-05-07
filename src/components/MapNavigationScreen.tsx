@@ -1,5 +1,13 @@
-import { useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Navigation, MapPin, Clock, Footprints, X, LocateFixed, ExternalLink } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, Navigation, MapPin, Clock, Footprints, LocateFixed, ExternalLink } from 'lucide-react';
+import {
+  STORY_POINT_COORDINATES,
+  STORY_POINT_FALLBACK_DISTANCES,
+  estimateWalkingMinutes,
+  formatDistance,
+  haversineDistanceMeters,
+  parseDistanceTextToMeters,
+} from '../lib/location';
 
 type StoryPointSummary = {
   id: string;
@@ -17,7 +25,6 @@ interface MapNavigationScreenProps {
   completedCount: number;
 }
 
-const FALLBACK_DISTANCES = ['120m', '350m', '580m', '720m'];
 const FALLBACK_DESCRIPTIONS = [
   'Where the ancient waterway bends through history',
   'A crossing once defined by regulation and nightfall',
@@ -25,30 +32,47 @@ const FALLBACK_DESCRIPTIONS = [
   'The poem that turned this place into cultural memory',
 ];
 
-const MAP_ROUTE_POINTS = [
-  { name: 'Grand Canal Turning Point', lng: 120.56574, lat: 31.31628 },
-  { name: 'Sealed Bridge at Night', lng: 120.56628, lat: 31.31688 },
-  { name: 'Trade Streets and Everyday Memory', lng: 120.56672, lat: 31.31746 },
-  { name: 'Night Mooring at Maple Bridge', lng: 120.56708, lat: 31.31805 },
+const MAP_POINT_MARKERS = [
+  { x: 195, y: 350 },
+  { x: 210, y: 280 },
+  { x: 195, y: 200 },
+  { x: 180, y: 140 },
 ];
 
-function amapNavigationUrl(destination: { lng: number; lat: number; name: string }) {
+const USER_MARKER = { x: 195, y: 480 };
+
+function amapMarkerUrl(destination: { lng: number; lat: number; name: string }) {
+  return `https://uri.amap.com/marker?position=${destination.lng},${destination.lat}&name=${encodeURIComponent(destination.name)}&src=echoes-maplebridge&coordinate=gaode&callnative=0`;
+}
+
+function amapNavigationUrl(
+  destination: { lng: number; lat: number; name: string },
+  origin?: { lng: number; lat: number } | null
+) {
   const to = encodeURIComponent(`${destination.lng},${destination.lat},${destination.name}`);
-  return `https://uri.amap.com/navigation?to=${to}&mode=walk&src=echoes-maplebridge`;
+  if (origin) {
+    const from = encodeURIComponent(`${origin.lng},${origin.lat},Visitor Location`);
+    return `https://uri.amap.com/navigation?from=${from}&to=${to}&mode=walk&src=echoes-maplebridge&coordinate=gaode&callnative=0`;
+  }
+  return amapMarkerUrl(destination);
 }
 
 function StaticNavigationView({
   destination,
   distance,
+  estimatedMinutes,
+  origin,
   onClose,
   onStartStory,
 }: {
   destination: { lng: number; lat: number; name: string };
   distance: string;
+  estimatedMinutes: number;
+  origin?: { lng: number; lat: number } | null;
   onClose: () => void;
   onStartStory: () => void;
 }) {
-  const externalUrl = useMemo(() => amapNavigationUrl(destination), [destination]);
+  const externalUrl = useMemo(() => amapNavigationUrl(destination, origin), [destination, origin]);
 
   return (
     <div className="absolute inset-0 z-40 flex flex-col bg-stone-950 text-white">
@@ -94,12 +118,13 @@ function StaticNavigationView({
           <div className="flex items-center justify-between">
             <button
               onClick={onClose}
-              className="flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/45 backdrop-blur-md"
+              className="flex items-center gap-2 rounded-full border border-white/15 bg-black/45 px-4 py-3 backdrop-blur-md"
             >
-              <X className="h-5 w-5 text-white" />
+              <ArrowLeft className="h-4 w-4 text-white" />
+              <span className="text-xs font-light text-white">Back</span>
             </button>
-            <div className="rounded-full border border-amber-200/30 bg-black/45 px-4 py-2 backdrop-blur-md">
-              <span className="text-xs uppercase tracking-[0.22em] text-amber-100">AMap Walk</span>
+            <div className="rounded-full border border-amber-200/20 bg-black/35 px-3.5 py-2 backdrop-blur-md shadow-lg">
+              <span className="text-[11px] uppercase tracking-[0.16em] text-amber-100/90">Guided Route</span>
             </div>
           </div>
         </div>
@@ -127,7 +152,7 @@ function StaticNavigationView({
               </div>
               <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3">
                 <p className="text-xs font-light text-amber-700">Time</p>
-                <p className="mt-1 text-lg font-light text-amber-950">2 min walk</p>
+                <p className="mt-1 text-lg font-light text-amber-950">{estimatedMinutes} min walk</p>
               </div>
             </div>
 
@@ -167,13 +192,58 @@ export function MapNavigationScreen({
   completedCount,
 }: MapNavigationScreenProps) {
   const sheetDragStartYRef = useRef<number | null>(null);
+  const sheetPointerIdRef = useRef<number | null>(null);
   const [isNavigationOpen, setIsNavigationOpen] = useState(false);
+  const [sheetMode, setSheetMode] = useState<'compact' | 'expanded'>('compact');
+  const [origin, setOrigin] = useState<{ lng: number; lat: number } | null>(null);
   const safeIndex = Math.min(currentStoryPointIndex, Math.max(storyPoints.length - 1, 0));
   const nextPoint = storyPoints[safeIndex];
-  const destination = MAP_ROUTE_POINTS[safeIndex] ?? MAP_ROUTE_POINTS[0];
+  const destination = STORY_POINT_COORDINATES[safeIndex] ?? STORY_POINT_COORDINATES[0];
+  const currentMapMarker = MAP_POINT_MARKERS[safeIndex] ?? MAP_POINT_MARKERS[0];
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        setOrigin({
+          lng: position.coords.longitude,
+          lat: position.coords.latitude,
+        });
+      },
+      () => {
+        setOrigin(null);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 30_000,
+        timeout: 10_000,
+      }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, []);
 
   const getDistance = (index: number) => {
-    return storyPoints[index]?.distance ?? FALLBACK_DISTANCES[index] ?? '120m';
+    if (origin) {
+      const point = STORY_POINT_COORDINATES[index] ?? STORY_POINT_COORDINATES[0];
+      return formatDistance(haversineDistanceMeters(origin, point));
+    }
+    return storyPoints[index]?.distance ?? STORY_POINT_FALLBACK_DISTANCES[index] ?? '120m';
+  };
+
+  const getEstimatedMinutes = (index: number) => {
+    if (origin) {
+      const point = STORY_POINT_COORDINATES[index] ?? STORY_POINT_COORDINATES[0];
+      return estimateWalkingMinutes(haversineDistanceMeters(origin, point));
+    }
+
+    const fallbackDistanceText = storyPoints[index]?.distance ?? STORY_POINT_FALLBACK_DISTANCES[index] ?? '120m';
+    return estimateWalkingMinutes(parseDistanceTextToMeters(fallbackDistanceText));
   };
 
   const getDescription = (index: number) => {
@@ -184,19 +254,41 @@ export function MapNavigationScreen({
     setIsNavigationOpen(true);
   };
 
+  const toggleSheetMode = () => {
+    setSheetMode((current) => (current === 'compact' ? 'expanded' : 'compact'));
+  };
+
   const handleSheetDragStart = (event: React.PointerEvent<HTMLButtonElement>) => {
     sheetDragStartYRef.current = event.clientY;
+    sheetPointerIdRef.current = event.pointerId;
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const handleSheetDragEnd = (event: React.PointerEvent<HTMLButtonElement>) => {
     const startY = sheetDragStartYRef.current;
     sheetDragStartYRef.current = null;
+    if (sheetPointerIdRef.current !== event.pointerId) {
+      return;
+    }
+    sheetPointerIdRef.current = null;
     event.currentTarget.releasePointerCapture(event.pointerId);
 
-    if (startY !== null && event.clientY - startY > 28) {
-      openNavigation();
+    if (startY === null) {
+      return;
     }
+
+    const deltaY = event.clientY - startY;
+    if (deltaY < -28) {
+      setSheetMode('expanded');
+      return;
+    }
+
+    if (deltaY > 28) {
+      setSheetMode('compact');
+      return;
+    }
+
+    toggleSheetMode();
   };
 
   return (
@@ -205,6 +297,8 @@ export function MapNavigationScreen({
         <StaticNavigationView
           destination={destination}
           distance={getDistance(safeIndex)}
+          estimatedMinutes={getEstimatedMinutes(safeIndex)}
+          origin={origin}
           onClose={() => setIsNavigationOpen(false)}
           onStartStory={onStartNavigation}
         />
@@ -233,13 +327,7 @@ export function MapNavigationScreen({
             />
 
             {[0, 1, 2, 3].map((index) => {
-              const points = [
-                { x: 195, y: 350 },
-                { x: 210, y: 280 },
-                { x: 195, y: 200 },
-                { x: 180, y: 140 },
-              ];
-              const point = points[index];
+              const point = MAP_POINT_MARKERS[index];
               const isCurrent = index === safeIndex;
               const isCompleted = index < completedCount;
               const fill = isCurrent ? '#EA580C' : isCompleted ? '#10B981' : '#78716C';
@@ -265,23 +353,35 @@ export function MapNavigationScreen({
               );
             })}
 
-            <circle cx="195" cy="480" r="28" fill="#3B82F6" opacity="0.15">
+            <circle cx={USER_MARKER.x} cy={USER_MARKER.y} r="28" fill="#3B82F6" opacity="0.15">
               <animate attributeName="r" from="28" to="36" dur="1.5s" repeatCount="indefinite" />
               <animate attributeName="opacity" from="0.15" to="0" dur="1.5s" repeatCount="indefinite" />
             </circle>
-            <circle cx="195" cy="480" r="18" fill="#3B82F6" />
-            <circle cx="195" cy="480" r="6" fill="white" />
+            <circle cx={USER_MARKER.x} cy={USER_MARKER.y} r="18" fill="#3B82F6" />
+            <circle cx={USER_MARKER.x} cy={USER_MARKER.y} r="6" fill="white" />
           </svg>
 
-          <div className="absolute" style={{ top: '320px', left: '220px' }}>
+          <div
+            className="absolute"
+            style={{
+              top: `${USER_MARKER.y - 14}px`,
+              left: `${USER_MARKER.x + 38}px`,
+            }}
+          >
             <div className="bg-white/95 backdrop-blur-sm px-3 py-1.5 rounded-full shadow-md border border-stone-200">
-              <p className="text-xs font-light text-stone-700">Next Point</p>
+              <p className="text-xs font-light text-stone-700">You</p>
             </div>
           </div>
 
-          <div className="absolute" style={{ top: '250px', left: '230px' }}>
+          <div
+            className="absolute"
+            style={{
+              top: `${currentMapMarker.y - 12}px`,
+              left: `${currentMapMarker.x + 38}px`,
+            }}
+          >
             <div className="bg-white/90 backdrop-blur-sm px-2.5 py-1 rounded-full shadow-sm">
-              <p className="text-xs font-light text-stone-600">Point {Math.min(safeIndex + 2, storyPoints.length)}</p>
+              <p className="text-xs font-light text-stone-600">Point {safeIndex + 1}</p>
             </div>
           </div>
         </div>
@@ -304,39 +404,21 @@ export function MapNavigationScreen({
           </div>
         </div>
 
-        <div className="absolute top-28 left-5 right-5">
-          <div className="bg-white/95 backdrop-blur-sm rounded-2xl shadow-lg p-4 border border-stone-200/50">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-                  <Footprints className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <p className="text-stone-500 text-xs font-light">Distance to next point</p>
-                  <p className="text-stone-800 text-xl font-light">{getDistance(safeIndex)}</p>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="flex items-center gap-1 text-stone-600">
-                  <Clock className="w-4 h-4" />
-                  <span className="text-sm font-light">2 min</span>
-                </div>
-                <p className="text-stone-400 text-xs font-light mt-0.5">walking</p>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
-      <div className="bg-white rounded-t-3xl shadow-2xl border-t border-stone-200/50">
-        <div className="p-6">
+      <div
+        className={`bg-white rounded-t-[2rem] shadow-2xl border-t border-stone-200/50 overflow-hidden transition-[height] duration-300 ease-out ${
+          sheetMode === 'expanded' ? 'h-[62%]' : 'h-[38%]'
+        }`}
+      >
+        <div className="h-full overflow-y-auto p-6">
           <button
             type="button"
-            onClick={openNavigation}
+            onClick={toggleSheetMode}
             onPointerDown={handleSheetDragStart}
             onPointerUp={handleSheetDragEnd}
             className="mx-auto mb-5 flex h-5 w-24 items-center justify-center touch-none"
-            aria-label="Open navigation"
+            aria-label={sheetMode === 'expanded' ? 'Collapse story points panel' : 'Expand story points panel'}
           >
             <span className="h-1 w-12 rounded-full bg-stone-300 transition-colors hover:bg-stone-400" />
           </button>
@@ -368,7 +450,7 @@ export function MapNavigationScreen({
               <div className="w-px h-4 bg-amber-300" />
               <div className="flex items-center gap-1.5">
                 <Clock className="w-4 h-4 text-amber-700" />
-                <span className="text-sm font-light text-amber-900">2 min walk</span>
+                <span className="text-sm font-light text-amber-900">{getEstimatedMinutes(safeIndex)} min walk</span>
               </div>
               <div className="w-px h-4 bg-amber-300" />
               <span className="text-xs font-light text-amber-700">Story + Task</span>
@@ -376,12 +458,20 @@ export function MapNavigationScreen({
           </div>
 
           <button
-            onClick={onStartNavigation}
+            onClick={openNavigation}
             disabled={safeIndex >= storyPoints.length}
             className="w-full bg-gradient-to-r from-stone-800 to-stone-700 text-white py-4 rounded-full font-light text-base tracking-wide shadow-lg hover:shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 disabled:hover:scale-100"
           >
             <Navigation className="w-5 h-5" />
-            {safeIndex >= storyPoints.length ? 'Journey Complete' : `Start Point ${Math.min(safeIndex + 1, storyPoints.length)}`}
+            {safeIndex >= storyPoints.length ? 'Journey Complete' : 'Preview Route'}
+          </button>
+
+          <button
+            onClick={onStartNavigation}
+            disabled={safeIndex >= storyPoints.length}
+            className="mt-3 w-full rounded-full border border-stone-300 bg-white py-3.5 font-light text-sm text-stone-800 disabled:opacity-50"
+          >
+            {safeIndex >= storyPoints.length ? 'No More Story Points' : `Start Point ${Math.min(safeIndex + 1, storyPoints.length)}`}
           </button>
 
           <div className="mt-5 pt-5 border-t border-stone-200">

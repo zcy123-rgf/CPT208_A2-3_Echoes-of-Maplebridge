@@ -1,11 +1,70 @@
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, MapPin, Camera, Info, CheckCircle2 } from 'lucide-react';
 import { Fragment } from '../App';
+import {
+  STORY_POINT_COORDINATES,
+  STORY_POINT_FALLBACK_DISTANCES,
+  formatDistance,
+  haversineDistanceMeters,
+} from '../lib/location';
 
 interface ExplorationScreenProps {
   onCompleteTask: (fragment: Fragment) => void;
 }
 
 export function ExplorationScreen({ onCompleteTask }: ExplorationScreenProps) {
+  const [origin, setOrigin] = useState<{ lng: number; lat: number } | null>(null);
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        setOrigin({
+          lng: position.coords.longitude,
+          lat: position.coords.latitude,
+        });
+      },
+      () => {
+        setOrigin(null);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 30_000,
+        timeout: 10_000,
+      }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, []);
+
+  const distanceInfo = useMemo(() => {
+    const fallback = STORY_POINT_FALLBACK_DISTANCES[0] ?? '120m';
+    if (!origin) {
+      return {
+        distanceText: fallback,
+        statusText: 'Distance estimate',
+      };
+    }
+
+    const meters = haversineDistanceMeters(origin, STORY_POINT_COORDINATES[0]);
+    if (meters <= 35) {
+      return {
+        distanceText: formatDistance(meters),
+        statusText: "You're at the location",
+      };
+    }
+
+    return {
+      distanceText: formatDistance(meters),
+      statusText: 'Approaching the location',
+    };
+  }, [origin]);
+
   const handleComplete = () => {
     const fragment: Fragment = {
       id: '1',
@@ -58,7 +117,7 @@ export function ExplorationScreen({ onCompleteTask }: ExplorationScreenProps) {
             </div>
             <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 rounded-full inline-flex">
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-              <span className="text-emerald-700 text-xs font-light">You're at the location • 0m away</span>
+              <span className="text-emerald-700 text-xs font-light">{distanceInfo.statusText} • {distanceInfo.distanceText} away</span>
             </div>
           </div>
         </div>

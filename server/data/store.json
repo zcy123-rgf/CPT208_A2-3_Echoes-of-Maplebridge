@@ -1,0 +1,95 @@
+{
+  "storyPoints": [
+    {
+      "id": "1",
+      "shortTitle": "Turning Point",
+      "title": "The Turning Point of the Grand Canal"
+    },
+    {
+      "id": "2",
+      "shortTitle": "Sealed Bridge",
+      "title": "The Sealed Bridge at Night"
+    },
+    {
+      "id": "3",
+      "shortTitle": "Trade and Memory",
+      "title": "Trade, Streets, and Everyday Memory"
+    },
+    {
+      "id": "4",
+      "shortTitle": "Night Mooring",
+      "title": "Night Mooring at Maple Bridge"
+    }
+  ],
+  "users": [],
+  "sessions": {},
+  "progress": {},
+  "photos": [
+    {
+      "id": "photo-1",
+      "userId": "canal-story-hunter",
+      "userName": "Canal Story Hunter",
+      "caption": "The bridge at golden hour, still holding the quiet of the old canal route.",
+      "imageUrl": "https://images.unsplash.com/photo-1763336323425-8c9ba61fc3e9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxDaGluZXNlJTIwYnJpZGdlJTIwd2F0ZXIlMjByZWZsZWN0aW9ufGVufDF8fHx8MTc3NDgwODM2Mnww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
+      "storyPointId": "1",
+      "storyPointTitle": "The Turning Point of the Grand Canal",
+      "likes": 124,
+      "createdAt": "2026-05-05T10:30:00.000Z"
+    },
+    {
+      "id": "photo-2",
+      "userId": "suzhou-echo-walker",
+      "userName": "Suzhou Echo Walker",
+      "caption": "A softer evening on the sealed bridge, where regulation once shaped the night.",
+      "imageUrl": "https://images.unsplash.com/photo-1761813378459-7ab89bc3345c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzdG9uZSUyMGJyaWRnZSUyMHN1bnNldCUyMHBlYWNlZnVsfGVufDF8fHx8MTc3NDgwODM2M3ww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
+      "storyPointId": "2",
+      "storyPointTitle": "The Sealed Bridge at Night",
+      "likes": 116,
+      "createdAt": "2026-05-05T07:15:00.000Z"
+    },
+    {
+      "id": "photo-3",
+      "userId": "moon-bell-collector",
+      "userName": "Moon Bell Collector",
+      "caption": "Trade, water, and routine life. This place feels bigger when you look past the poem.",
+      "imageUrl": "https://images.unsplash.com/photo-1749888197235-259de414f349?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx0cmFkaXRpb25hbCUyMGJvYXQlMjB3YXRlciUyMENoaW5hfGVufDF8fHx8MTc3NDgwODM2M3ww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
+      "storyPointId": "3",
+      "storyPointTitle": "Trade, Streets, and Everyday Memory",
+      "likes": 103,
+      "createdAt": "2026-05-04T09:00:00.000Z"
+    },
+    {
+      "id": "photo-4",
+      "userId": "bridge-sketchbook",
+      "userName": "Bridge Sketchbook",
+      "caption": "Night falls on Maple Bridge, and the poem suddenly makes emotional sense.",
+      "imageUrl": "https://images.unsplash.com/photo-1766953597804-893f1993b8af?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxuaWdodCUyMHJpdmVyJTIwdHJhZGl0aW9uYWwlMjBicmlkZ2UlMjByZWZsZWN0aW9ufGVufDF8fHx8MTc3NDgwODM2Mnww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
+      "storyPointId": "4",
+      "storyPointTitle": "Night Mooring at Maple Bridge",
+      "likes": 88,
+      "createdAt": "2026-05-03T13:20:00.000Z"
+    },
+    {
+      "id": "photo-5",
+      "userId": "canal-story-hunter",
+      "userName": "Canal Story Hunter",
+      "caption": "From this bend, you can imagine arrivals folding into the city.",
+      "imageUrl": "https://images.unsplash.com/photo-1763336323425-8c9ba61fc3e9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxDaGluZXNlJTIwYnJpZGdlJTIwd2F0ZXIlMjByZWZsZWN0aW9ufGVufDF8fHx8MTc3NDgwODM2Mnww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
+      "storyPointId": "1",
+      "storyPointTitle": "The Turning Point of the Grand Canal",
+      "likes": 74,
+      "createdAt": "2026-05-03T03:10:00.000Z"
+    },
+    {
+      "id": "photo-6",
+      "userId": "suzhou-echo-walker",
+      "userName": "Suzhou Echo Walker",
+      "caption": "The canal edge still carries that threshold feeling between movement and memory.",
+      "imageUrl": "https://images.unsplash.com/photo-1761813378459-7ab89bc3345c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxzdG9uZSUyMGJyaWRnZSUyMHN1bnNldCUyMHBlYWNlZnVsfGVufDF8fHx8MTc3NDgwODM2M3ww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral",
+      "storyPointId": "2",
+      "storyPointTitle": "The Sealed Bridge at Night",
+      "likes": 63,
+      "createdAt": "2026-05-02T11:55:00.000Z"
+    }
+  ]
+}

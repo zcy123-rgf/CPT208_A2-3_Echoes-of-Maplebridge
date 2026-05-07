@@ -1,7 +1,8 @@
-import { X, Camera, MessageCircle, Sparkles, ChevronRight } from 'lucide-react';
+import { X, Camera, Sparkles, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { GuideConversation } from '../App';
 import zhangjiReference from '../assets/zhangji-reference.webp';
+import { GuideChatSheet } from './GuideChatSheet';
 
 interface ARExplorationScreenProps {
   onClose: () => void;
@@ -304,12 +305,13 @@ export function ARExplorationScreen({
         </div>
       </div>
 
-      <div className="absolute bottom-6 right-6 z-20 pointer-events-auto">
-        <button className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-amber-200/30 bg-gradient-to-br from-stone-800 to-stone-700 shadow-2xl transition-all hover:scale-105 hover:shadow-xl active:scale-95">
-          <MessageCircle className="h-6 w-6 text-amber-100" />
-        </button>
-        <div className="absolute -right-1 -top-1 h-4 w-4 rounded-full border-2 border-white bg-amber-500 animate-pulse" />
-      </div>
+      <GuideChatSheet
+        title={guideName}
+        subtitle="AI Poet Guide"
+        intro={guideConversation.intro}
+        prompts={guideConversation.suggestedQuestions}
+        buttonWrapperClassName="absolute bottom-6 right-6 z-20 pointer-events-auto"
+      />
 
       <style>{`
         @keyframes float {

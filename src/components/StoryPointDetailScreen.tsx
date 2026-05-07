@@ -1,4 +1,12 @@
-import { ArrowLeft, Camera, Sparkles, MessageCircle, Navigation2, CheckCircle2, Orbit } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowLeft, Camera, Sparkles, Navigation2, CheckCircle2, Orbit } from 'lucide-react';
+import { GuideChatSheet } from './GuideChatSheet';
+import {
+  STORY_POINT_COORDINATES,
+  STORY_POINT_FALLBACK_DISTANCES,
+  formatDistance,
+  haversineDistanceMeters,
+} from '../lib/location';
 
 interface StoryPointDetailScreenProps {
   onBack: () => void;
@@ -30,6 +38,65 @@ export function StoryPointDetailScreen({ onBack, onCheckIn, onOpenAR, onRetryTas
   const isARStoryPoint = storyPoint.taskType === 'ar';
   const showGuidePreview = hasGuidePreview || Boolean(storyPoint.hasGuidePreview) || isARStoryPoint;
   const visibleJourneyPoints = journeyPoints.slice(0, totalStoryPoints);
+  const [origin, setOrigin] = useState<{ lng: number; lat: number } | null>(null);
+  const locationIndex = Math.min(storyPointIndex, STORY_POINT_COORDINATES.length - 1);
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        setOrigin({
+          lng: position.coords.longitude,
+          lat: position.coords.latitude,
+        });
+      },
+      () => {
+        setOrigin(null);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 30_000,
+        timeout: 10_000,
+      }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, []);
+
+  const distanceInfo = useMemo(() => {
+    const fallback = STORY_POINT_FALLBACK_DISTANCES[locationIndex] ?? '120m';
+    if (!origin) {
+      return {
+        distanceText: fallback,
+        locationLabel: 'Distance estimate',
+        subLabel: 'Approximate walking distance to this story point',
+      };
+    }
+
+    const point = STORY_POINT_COORDINATES[locationIndex] ?? STORY_POINT_COORDINATES[0];
+    const meters = haversineDistanceMeters(origin, point);
+    const distanceText = formatDistance(meters);
+
+    if (meters <= 35) {
+      return {
+        distanceText,
+        locationLabel: "You're at the location",
+        subLabel: 'Maple Bridge, Suzhou',
+      };
+    }
+
+    return {
+      distanceText,
+      locationLabel: 'Approaching the location',
+      subLabel: 'Live distance from your current position',
+    };
+  }, [locationIndex, origin]);
+
   return (
     <div className="h-full flex flex-col bg-gradient-to-b from-stone-50 to-amber-50/30">
       {/* Hero Image Section */}
@@ -80,13 +147,13 @@ export function StoryPointDetailScreen({ onBack, onCheckIn, onOpenAR, onRetryTas
                     <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                   </div>
                   <div>
-                    <p className="text-sm font-light text-stone-800">You're at the location</p>
-                    <p className="text-xs font-light text-stone-500">Maple Bridge, Suzhou</p>
+                    <p className="text-sm font-light text-stone-800">{distanceInfo.locationLabel}</p>
+                    <p className="text-xs font-light text-stone-500">{distanceInfo.subLabel}</p>
                   </div>
                 </div>
                 <div className="text-right">
                   <p className="text-xs font-light text-stone-500">Distance</p>
-                  <p className="text-lg font-light text-stone-800">0m</p>
+                  <p className="text-lg font-light text-stone-800">{distanceInfo.distanceText}</p>
                 </div>
               </div>
             </div>
@@ -290,13 +357,17 @@ export function StoryPointDetailScreen({ onBack, onCheckIn, onOpenAR, onRetryTas
       </div>
 
       {/* Floating AI Assistant */}
-      <div className="absolute bottom-6 right-6">
-        <button className="w-14 h-14 rounded-full bg-gradient-to-br from-stone-800 to-stone-700 shadow-2xl flex items-center justify-center hover:shadow-xl transition-all hover:scale-105 active:scale-95 border-2 border-amber-200/30">
-          <MessageCircle className="w-6 h-6 text-amber-100" />
-        </button>
-        {/* Pulse indicator */}
-        <div className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-white animate-pulse"></div>
-      </div>
+      <GuideChatSheet
+        title={storyPoint.title}
+        subtitle="AI Story Guide"
+        intro={`Ask about ${storyPoint.title}, its historic layer, or what to notice at Maple Bridge.`}
+        prompts={[
+          `What should I notice at ${storyPoint.title}?`,
+          'Why is this place historically important?',
+          'How does this point connect to Maple Bridge as a whole?',
+        ]}
+        buttonWrapperClassName="absolute bottom-6 right-6"
+      />
 
       {/* Bottom Navigation Hint */}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white via-white to-transparent pt-8 pb-6 px-6 pointer-events-none">
